@@ -49,7 +49,7 @@ class DataLoader():
         data_dir = '../2d_drive_data/'
 
         # Load mixed data
-        filename = data_dir + 'data_passive_aggressive.jld'
+        filename = data_dir + 'data_distinct_drivers.jld'
         data = h5py.File(filename, 'r')
         s = data['features'][:]
         a = data['targets'][:]
@@ -113,6 +113,22 @@ class DataLoader():
         self.a_agg = a_agg[:int(np.floor(len(a_agg)/self.batch_size)*self.batch_size)]
         self.a_agg = np.reshape(self.a_agg, (-1, self.batch_size, self.seq_length, a_agg.shape[2]))
 
+        # Load aggressive data
+        filename = data_dir + 'data_medium.jld'
+        data = h5py.File(filename, 'r')
+        s_med = data['features'][:]
+        a_med = data['targets'][:]
+        intervals = data['intervals'][:]
+        data.close()
+
+        s_med, a_med = self._trim_data(s_med, a_med, intervals)
+
+        # Make sure batch_size divides into num of examples 
+        self.s_med = s_med[:int(np.floor(len(s_med)/self.batch_size)*self.batch_size)]
+        self.s_med = np.reshape(self.s_med, (-1, self.batch_size, self.seq_length, s_med.shape[2]))
+        self.a_med = a_med[:int(np.floor(len(a_med)/self.batch_size)*self.batch_size)]
+        self.a_med = np.reshape(self.a_med, (-1, self.batch_size, self.seq_length, a_med.shape[2]))
+
     # Separate data into train/validation sets
     def _create_split(self):
 
@@ -122,6 +138,7 @@ class DataLoader():
         self.n_batches_train = self.n_batches - self.n_batches_val
         self.n_batches_pass = len(self.s_pass)
         self.n_batches_agg = len(self.s_agg)
+        self.n_batches_med = len(self.s_med)
 
         print 'num training batches: ', self.n_batches_train
         print 'num validation batches: ', self.n_batches_val
@@ -149,6 +166,9 @@ class DataLoader():
 
         self.s_agg = (self.s_agg - self.shift_s)/self.scale_s
         self.a_agg = (self.a_agg - self.shift_a)/self.scale_a
+
+        self.s_med = (self.s_med - self.shift_s)/self.scale_s
+        self.a_med = (self.a_med - self.shift_a)/self.scale_a
 
     # Sample a new batch of data
     def next_batch_train(self):
@@ -199,5 +219,15 @@ class DataLoader():
 
         # Update pointer
         self.batchptr_agg += 1
+        return self.batch_dict
+
+    # Sample a new batch of data from passive set
+    def next_batch_med(self):
+        # Extract next batch
+        self.batch_dict["states"] = self.s_med[self.batchptr_med]
+        self.batch_dict["actions"] = self.a_med[self.batchptr_med]
+
+        # Update pointer
+        self.batchptr_med += 1
         return self.batch_dict
 

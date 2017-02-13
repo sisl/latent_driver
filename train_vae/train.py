@@ -42,6 +42,14 @@ def main():
     ############################
     parser.add_argument('--policy_size',        type=int,   default=128,        help='number of neurons in each feedforward layer')
     parser.add_argument('--num_policy_layers',  type=int,   default=  2,        help='number of layers in the policy network')
+    parser.add_argument('--input_dropout',      type=float, default=  1.0,      help='percent of inputs to keep')
+
+    ############################
+    #       Reconstructor      #
+    ############################
+    parser.add_argument('--rec_size',        type=int,   default= 64,        help='number of neurons in each feedforward layer')
+    parser.add_argument('--num_rec_layers',  type=int,   default=  2,        help='number of layers in the policy network')
+    parser.add_argument('--rec_weight',      type=float, default=  0.5,      help='weight applied to reconstruction cost')
 
     args = parser.parse_args()
 
@@ -97,8 +105,8 @@ def train(args, net):
             # Create new map of latent space
             return policy_loss/data_loader.n_batches_val
 
-        tf.initialize_all_variables().run()
-        saver = tf.train.Saver(tf.all_variables(), max_to_keep=5)
+        tf.global_variables_initializer().run()
+        saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
 
         # load from previous save
         if len(args.ckpt_name) > 0:
@@ -112,6 +120,7 @@ def train(args, net):
         # Initialize loss
         loss = 0.0
         policy_loss = 0.0
+        rec_loss = 0.0
 
         # Set initial learning rate and weight on kl divergence
         print 'setting learning rate to ', args.learning_rate
@@ -119,8 +128,8 @@ def train(args, net):
         kl_weight = 1e-4
 
         # Set up tensorboard summary
-        merged = tf.merge_all_summaries()
-        writer = tf.train.SummaryWriter('summaries/')
+        merged = tf.summary.merge_all()
+        writer = tf.summary.FileWriter('summaries/')
 
         # Loop over epochs
         for e in xrange(args.num_epochs):
@@ -133,7 +142,7 @@ def train(args, net):
             latent_viz(args, net, e, sess, data_loader)
 
             # Set learning rate
-            if (old_score - score) < 0.1 and kl_weight >= 0.05:
+            if (old_score - score) < 0.1 and kl_weight >= 0.005:
                 count_decay += 1
                 decay_epochs.append(e)
                 if len(decay_epochs) >= 3 and np.sum(np.diff(decay_epochs)[-2:]) == 2: break
@@ -172,13 +181,14 @@ def train(args, net):
                     feed_in[net.kl_weight] = kl_weight
                     for i, (c, m) in enumerate(net.lstm_state):
                         feed_in[c], feed_in[m] = state[i]
-                    feed_out = [net.cost, net.policy_cost, net.summary_policy, net.summary_encoder, net.summary_loss, net.train]
-                    train_loss, policy_cost, summary_policy, summary_encoder, summary_loss, _ = sess.run(feed_out, feed_in)
+                    feed_out = [net.cost, net.policy_cost, net.rec_cost, net.summary_policy, net.summary_encoder, net.summary_loss, net.train]
+                    train_loss, policy_cost, rec_cost, summary_policy, summary_encoder, summary_loss, _ = sess.run(feed_out, feed_in)
                     
                     writer.add_summary(summary_policy, e * data_loader.n_batches_train + b)
                     writer.add_summary(summary_encoder, e * data_loader.n_batches_train + b)
                     writer.add_summary(summary_loss, e * data_loader.n_batches_train + b)
                     policy_loss += policy_cost
+                    rec_loss += rec_cost
                     loss += train_loss
 
                 end = time.time()
@@ -193,9 +203,14 @@ def train(args, net):
                       .format(e * data_loader.n_batches_train + b,
                               args.num_epochs * data_loader.n_batches_train,
                               e, policy_loss/10., end - start)
+                    print "{}/{} (epoch {}), rec_loss = {:.3f}, time/batch = {:.3f}" \
+                      .format(e * data_loader.n_batches_train + b,
+                              args.num_epochs * data_loader.n_batches_train,
+                              e, rec_loss/10., end - start)
                     loss = 0.0
                     policy_loss = 0.0
-                kl_weight = min(0.01, kl_weight*1.01**(args.seq_length/300.))
+                    rec_loss = 0.0
+                kl_weight = min(0.01, kl_weight*1.005**(args.seq_length/300.))
 
             # Save model every epoch
             checkpoint_path = os.path.join(args.save_dir, 'vae.ckpt')

@@ -90,23 +90,43 @@ def latent_viz(args, net, e, sess, data_loader):
         else:
             full_sample_agg = np.concatenate((full_sample_agg, z_samples), axis=0)
 
+    # Generate aggressive samples
+    data_loader.batchptr_med = 0
+    full_sample_med = 0.0
+    print 'generating z samples medium...'
+    for b in xrange(data_loader.n_batches_med):
+        batch_dict = data_loader.next_batch_med()
+        s = batch_dict["states"]
+        a = batch_dict["actions"]
+        z_mean, z_logstd, state = net.encode(sess, s, a, args)
+
+        samples = np.random.normal(size=(args.sample_size, args.batch_size, args.z_dim))
+        z_samples = samples * np.exp(z_logstd) + z_mean
+        z_samples = np.reshape(z_samples, (args.sample_size*args.batch_size, args.z_dim))
+        if type(full_sample_med) is float:
+            full_sample_med = z_samples
+        else:
+            full_sample_med = np.concatenate((full_sample_med, z_samples), axis=0)
+
     # Select random subset of values in full set of samples
     ind_pass = random.sample(xrange(0, len(full_sample_pass)), 2000)
     ind_agg = random.sample(xrange(0, len(full_sample_agg)), 2000)
+    ind_med = random.sample(xrange(0, len(full_sample_med)), 2000)
 
     # Plot and save results
     print 'saving and exiting.'
     plt.cla()
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
-    plt.plot(full_sample_pass[ind_pass, 0], full_sample_pass[ind_pass, 1], 'ro', label='Passive')
-    plt.plot(full_sample_agg[ind_agg, 0], full_sample_agg[ind_agg, 1], 'bx', label='Aggressive')
-    plt.ylim(-8, 8)
-    plt.xlim(-8, 8)
+    plt.plot(full_sample_pass[ind_pass, 0], full_sample_pass[ind_pass, 1], 'bx', label='Passive')
+    plt.plot(full_sample_agg[ind_agg, 0], full_sample_agg[ind_agg, 1], 'ro', label='Aggressive')
+    plt.plot(full_sample_med[ind_med, 0], full_sample_med[ind_med, 1], 'gp', label='Medium')
+    # plt.ylim(-8, 8)
+    # plt.xlim(-8, 8)
     plt.xlabel(r'$z_1$', fontsize=16)
     plt.ylabel(r'$z_2$', fontsize=16)
     plt.title('Epoch ' + str(e))
-    plt.legend(loc='upper right')
+    plt.legend(loc='upper right', numpoints=1)
     plt.grid()
-    plt.savefig('./images/latent_viz_'+str(e)+'.pdf')
+    plt.savefig('./images_rec/latent_viz_'+str(e)+'.pdf')
 
