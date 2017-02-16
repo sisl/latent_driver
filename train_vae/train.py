@@ -1,3 +1,6 @@
+# COMMAND THAT WORKED WELL: python train.py --seq_length 100 --rec_weight 0.03
+
+
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
