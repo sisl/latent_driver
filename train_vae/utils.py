@@ -52,11 +52,16 @@ def save_h5(args, net):
                         else:
                             dset[v.name] = val
 
+def normalize(v):
+    vec = np.array([np.exp(v[i, j])/sum(np.exp(v[i])) for i in xrange(v.shape[0]) for j in xrange(v.shape[1])])
+    return np.reshape(vec, v.shape)
+
 # Visualize samples from latent space
 def latent_viz(args, net, e, sess, data_loader):
     # Generate passive samples
     data_loader.batchptr_pass = 0
     full_sample_pass = 0.0
+    dot_array = np.array([-10., 0., 10.])
     print 'generating z samples passive...'
     for b in xrange(data_loader.n_batches_pass):
         batch_dict = data_loader.next_batch_pass()
@@ -67,6 +72,12 @@ def latent_viz(args, net, e, sess, data_loader):
         samples = np.random.normal(size=(args.sample_size, args.batch_size, args.z_dim))
         z_samples = samples * np.exp(z_logstd) + z_mean
         z_samples = np.reshape(z_samples, (args.sample_size*args.batch_size, args.z_dim))
+
+        # z_dist, state = net.encode(sess, s, a, args)
+        # # z_dist = normalize(z_logits)
+        # # print z_dist[0:3]
+
+        # z_samples = np.dot(z_dist, dot_array)
         if type(full_sample_pass) is float:
             full_sample_pass = z_samples
         else:
@@ -85,12 +96,17 @@ def latent_viz(args, net, e, sess, data_loader):
         samples = np.random.normal(size=(args.sample_size, args.batch_size, args.z_dim))
         z_samples = samples * np.exp(z_logstd) + z_mean
         z_samples = np.reshape(z_samples, (args.sample_size*args.batch_size, args.z_dim))
+
+        # z_dist, state = net.encode(sess, s, a, args)
+        # # z_dist = normalize(z_logits)
+
+        # z_samples = np.dot(z_dist, dot_array)
         if type(full_sample_agg) is float:
             full_sample_agg = z_samples
         else:
             full_sample_agg = np.concatenate((full_sample_agg, z_samples), axis=0)
 
-    # Generate aggressive samples
+    # Generate medium samples
     data_loader.batchptr_med = 0
     full_sample_med = 0.0
     print 'generating z samples medium...'
@@ -103,15 +119,23 @@ def latent_viz(args, net, e, sess, data_loader):
         samples = np.random.normal(size=(args.sample_size, args.batch_size, args.z_dim))
         z_samples = samples * np.exp(z_logstd) + z_mean
         z_samples = np.reshape(z_samples, (args.sample_size*args.batch_size, args.z_dim))
+
+        # z_dist, state = net.encode(sess, s, a, args)
+        # # z_dist = normalize(z_logits)
+
+        # z_samples = np.dot(z_dist, dot_array)
         if type(full_sample_med) is float:
             full_sample_med = z_samples
         else:
             full_sample_med = np.concatenate((full_sample_med, z_samples), axis=0)
 
     # Select random subset of values in full set of samples
-    ind_pass = random.sample(xrange(0, len(full_sample_pass)), 2000)
-    ind_agg = random.sample(xrange(0, len(full_sample_agg)), 2000)
-    ind_med = random.sample(xrange(0, len(full_sample_med)), 2000)
+    ind_pass = random.sample(xrange(len(full_sample_pass)), 2000)
+    ind_agg = random.sample(xrange(len(full_sample_agg)), 2000)
+    ind_med = random.sample(xrange(len(full_sample_med)), 2000)
+    # ind_pass = xrange(len(full_sample_pass)) 
+    # ind_agg = xrange(len(full_sample_agg)) 
+    # ind_med = xrange(len(full_sample_med)) 
 
     # Plot and save results
     print 'saving and exiting.'
@@ -121,12 +145,16 @@ def latent_viz(args, net, e, sess, data_loader):
     plt.plot(full_sample_pass[ind_pass, 0], full_sample_pass[ind_pass, 1], 'bx', label='Passive')
     plt.plot(full_sample_agg[ind_agg, 0], full_sample_agg[ind_agg, 1], 'ro', label='Aggressive')
     plt.plot(full_sample_med[ind_med, 0], full_sample_med[ind_med, 1], 'gp', label='Medium')
-    # plt.ylim(-8, 8)
-    # plt.xlim(-8, 8)
+
+    # plt.plot(full_sample_pass[ind_pass], -2.0*np.ones(len(ind_pass)), 'bx', label='Passive')
+    # plt.plot(full_sample_agg[ind_agg], np.zeros(len(ind_agg)), 'ro', label='Aggressive')
+    # plt.plot(full_sample_med[ind_med], 2.0*np.ones(len(ind_med)), 'gp', label='Medium')
+    plt.ylim(-5, 5)
+    plt.xlim(-5, 5)
     plt.xlabel(r'$z_1$', fontsize=16)
     plt.ylabel(r'$z_2$', fontsize=16)
     plt.title('Epoch ' + str(e))
     plt.legend(loc='upper right', numpoints=1)
     plt.grid()
-    plt.savefig('./images_rec/latent_viz_'+str(e)+'.pdf')
+    plt.savefig('./images_300/latent_viz_'+str(e)+'.pdf')
 

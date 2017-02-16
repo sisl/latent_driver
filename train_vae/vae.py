@@ -40,6 +40,11 @@ class VariationalAutoencoder():
         # Separate into mean and logstd
         self.z_mean, self.z_logstd = tf.split(1, 2, logits)
 
+        # # Fully connected layer to latent variable distribution parameters
+        # W = tf.get_variable("latent_w", [args.encoder_size, args.z_dim], initializer=initializers.xavier_initializer())
+        # b = tf.get_variable("latent_b", [args.z_dim])
+        # self.z_logits = tf.nn.softmax(tf.nn.xw_plus_b(output, W, b))
+
     def _create_policy(self, args):
         # Get samples from standard normal distribution, transform to match z-distribution
         samples = tf.random_normal([args.sample_size, args.batch_size, args.z_dim], name="z_samples")
@@ -50,6 +55,14 @@ class VariationalAutoencoder():
         self.states_do = tf.nn.dropout(self.states, args.input_dropout)
         enc_in = tf.concat(2, [self.states_do, self.z_samples])
         enc_in = tf.reshape(enc_in, [args.batch_size*args.sample_size, args.state_dim + args.z_dim], name="enc_in")
+
+        # Get samples from standard normal distribution, transform to match z-distribution
+        # self.z_samples = tf.one_hot(tf.multinomial(self.z_logits, args.sample_size, name="z_samples"), depth=args.z_dim, axis=2)
+        # self.z_samples = tf.cast(self.z_samples, tf.float32)
+
+        # # Construct encoder input
+        # enc_in = tf.concat(1, [self.states_encode, self.z_logits])
+        # # enc_in = tf.reshape(enc_in, [args.batch_size*args.sample_size, args.state_dim + args.z_dim], name="enc_in")
 
         # Create fully connected network of desired size
         W = tf.get_variable("w_0", [args.state_dim + args.z_dim, args.policy_size], initializer=initializers.xavier_initializer())
@@ -65,6 +78,7 @@ class VariationalAutoencoder():
         b = tf.get_variable("b_end", [args.action_dim])
         a_mean = tf.nn.xw_plus_b(output, W, b)
         self.a_mean = tf.reshape(a_mean, [args.batch_size, args.sample_size, args.action_dim], name="a_mean")
+        # self.a_mean = a_mean
 
         # Initialize logstd
         self.a_logstd = tf.Variable(np.zeros(args.action_dim), name="a_logstd", dtype=tf.float32)
@@ -79,6 +93,15 @@ class VariationalAutoencoder():
         rec_in = tf.concat(2, [self.states, self.a_samples])
         rec_in = tf.reshape(rec_in, [args.batch_size*args.sample_size, args.state_dim + args.action_dim], name="rec_in")
 
+        # # Get samples from standard normal distribution, transform to match a-distribution
+        # samples = tf.random_normal([args.batch_size, args.action_dim], name="a_samples")
+        # self.a_samples = samples * tf.exp(self.a_logstd) + self.a_mean
+        # # self.a_samples = tf.transpose(self.a_samples, perm=[1, 0, 2])
+
+        # # Construct reconstructor input
+        # rec_in = tf.concat(1, [self.states_encode, self.a_samples])
+        # # rec_in = tf.reshape(rec_in, [args.batch_size*args.sample_size, args.state_dim + args.action_dim], name="rec_in")
+
         # Create fully connected network of desired size
         W = tf.get_variable("rec_w_0", [args.state_dim + args.action_dim, args.rec_size], initializer=initializers.xavier_initializer())
         b = tf.get_variable("rec_b_0", [args.rec_size])
@@ -92,10 +115,16 @@ class VariationalAutoencoder():
         W = tf.get_variable("rec_w_end", [args.rec_size, args.z_dim], initializer=initializers.xavier_initializer())
         b = tf.get_variable("rec_b_end", [args.z_dim])
         z_rec_mean = tf.nn.xw_plus_b(output, W, b)
-        self.z_rec_mean = tf.reshape(z_rec_mean, [args.batch_size, args.sample_size, args.action_dim], name="z_rec_mean")
+        self.z_rec_mean = tf.reshape(z_rec_mean, [args.batch_size, args.sample_size, args.z_dim], name="z_rec_mean")
 
         # Initialize logstd
         self.z_rec_logstd = tf.Variable(np.zeros(args.z_dim), name="z_rec_logstd", dtype=tf.float32)
+
+        # W = tf.get_variable("rec_w_end", [args.rec_size, args.z_dim], initializer=initializers.xavier_initializer())
+        # b = tf.get_variable("rec_b_end", [args.z_dim])
+        # z_rec_logits = tf.nn.xw_plus_b(output, W, b)
+        # # self.z_rec_logits = tf.reshape(z_rec_logits, [args.batch_size, args.sample_size, args.z_dim], name="z_rec_logits")
+        # self.z_rec_logits = tf.nn.softmax(z_rec_logits)
 
     def _create_optimizer(self, args):
         # Find negagtive log-likelihood of true actions
@@ -103,6 +132,7 @@ class VariationalAutoencoder():
         pl_1 = 0.5 * tf.to_float(args.action_dim) * np.log(2. * np.pi)
         pl_2 = tf.reduce_sum(tf.log(std_a))
         pl_3 = 0.5 * tf.reduce_sum(tf.square((self.actions - self.a_mean)/std_a), 2)
+        # pl_3 = 0.5 * tf.square((self.actions_encode - self.a_mean)/std_a)
         policy_loss = tf.reduce_mean(pl_1 + pl_2 + pl_3, 1)
 
         # Find KL-divergence between prior (standard normal) and approximate posterior
@@ -112,6 +142,7 @@ class VariationalAutoencoder():
         el_3 = tf.reduce_sum(tf.square(std_z), 1)
         el_4 = tf.reduce_sum(tf.square(self.z_mean), 1)
         encoder_loss = el_1 + el_2 + el_3 + el_4
+        # encoder_loss = 0.0
 
         # Find negagtive log-likelihood of reconstructed z-values
         std_z_rec = tf.exp(self.z_rec_logstd) + 1e-3
@@ -119,11 +150,13 @@ class VariationalAutoencoder():
         rl_2 = tf.reduce_sum(tf.log(std_z_rec))
         rl_3 = 0.5 * tf.reduce_sum(tf.square((self.z_samples - self.z_rec_mean)/std_z_rec), 2)
         rec_loss = tf.reduce_mean(rl_1 + rl_2 + rl_3, 1)
+        # rec_loss = tf.reduce_mean(tf.nn.l2_loss(self.z_rec_logits - self.z_logits))
 
         # Find overall loss
         self.policy_cost = tf.reduce_mean(policy_loss/args.seq_length)
         self.rec_cost = tf.reduce_mean(rec_loss/args.seq_length)
         self.cost = tf.reduce_mean((policy_loss + self.kl_weight*encoder_loss + args.rec_weight*rec_loss)/args.seq_length)
+        # self.cost = tf.reduce_mean((policy_loss + args.rec_weight*rec_loss)/args.seq_length)
         self.summary_policy = tf.summary.scalar("Policy loss", tf.reduce_mean(policy_loss)/args.seq_length)
         self.summary_encoder = tf.summary.scalar("Encoder loss", tf.reduce_mean(encoder_loss)/args.seq_length)
         self.summary_loss = tf.summary.scalar("Overall loss", self.cost)
@@ -154,6 +187,7 @@ class VariationalAutoencoder():
 
             # Define outputs
             feed_out = [self.z_mean, self.z_logstd]
+            # feed_out = [self.z_logits]
             for c, m in self.final_state:
                 feed_out.append(c)
                 feed_out.append(m)
@@ -163,6 +197,8 @@ class VariationalAutoencoder():
             z_mean = res[0]
             z_logstd = res[1]
             state_flat = res[2:]
+            # z_logits = res[0]
+            # state_flat = res[1:]
             state = [state_flat[i:i+2] for i in range(0, len(state_flat), 2)]
 
         return z_mean, z_logstd, state

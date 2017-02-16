@@ -42,7 +42,7 @@ def main():
     ############################
     parser.add_argument('--policy_size',        type=int,   default=128,        help='number of neurons in each feedforward layer')
     parser.add_argument('--num_policy_layers',  type=int,   default=  2,        help='number of layers in the policy network')
-    parser.add_argument('--input_dropout',      type=float, default=  1.0,      help='percent of inputs to keep')
+    parser.add_argument('--input_dropout',      type=float, default=  1.0,        help='percent of state values to keep')
 
     ############################
     #       Reconstructor      #
@@ -78,6 +78,7 @@ def train(args, net):
                 s = batch_dict["states"]
                 a = batch_dict["actions"]
                 _, _, state = net.encode(sess, s, a, args)
+                # _, state = net.encode(sess, s, a, args)
 
                 # Set state and action input for encoder
                 s_enc, a_enc = s[:,args.seq_length-1], a[:,args.seq_length-1]
@@ -161,6 +162,7 @@ def train(args, net):
                 s = batch_dict["states"]
                 a = batch_dict["actions"]
                 _, _, state = net.encode(sess, s, a, args)
+                # _, state = net.encode(sess, s, a, args)
 
                 # Set state and action input for encoder
                 s_enc, a_enc = s[:,args.seq_length-1], a[:,args.seq_length-1,:args.action_dim]
@@ -210,7 +212,7 @@ def train(args, net):
                     loss = 0.0
                     policy_loss = 0.0
                     rec_loss = 0.0
-                kl_weight = min(0.01, kl_weight*1.005**(args.seq_length/300.))
+                kl_weight = min(0.05, kl_weight*1.1**(args.seq_length/300.))
 
             # Save model every epoch
             checkpoint_path = os.path.join(args.save_dir, 'vae.ckpt')
