@@ -10,7 +10,7 @@ Below we can see the how the encoder chooses to represent trajectories from diff
 Once we have a trained policy, we can propagate trajectories by passing observations and samples from the latent space into the policy and using the actions to propagate the scene forward. If we initialize a vehicle at 20 m/s and an aggressive latent state, we can see that it chooses to accelerate.
 ![](https://github.com/jgmorton/latent_driver/blob/master/gifs/speed_agg.gif?raw=true)
 
-Likewise, if a vehicle is initialized with a passive latent state, it instead chooses to decelerate.
+Instead, if a vehicle is initialized with a passive latent state, it chooses to decelerate.
 ![](https://github.com/jgmorton/latent_driver/blob/master/gifs/speed_pass.gif?raw=true)
 
 
