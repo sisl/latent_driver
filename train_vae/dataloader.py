@@ -49,7 +49,7 @@ class DataLoader():
         data_dir = '../2d_drive_data/'
 
         # Load mixed data
-        filename = data_dir + 'data_distinct_drivers.jld'
+        filename = data_dir + 'data_distinct_drivers_4.jld'
         data = h5py.File(filename, 'r')
         s = data['features'][:]
         a = data['targets'][:]
@@ -113,21 +113,37 @@ class DataLoader():
         self.a_agg = a_agg[:int(np.floor(len(a_agg)/self.batch_size)*self.batch_size)]
         self.a_agg = np.reshape(self.a_agg, (-1, self.batch_size, self.seq_length, a_agg.shape[2]))
 
-        # Load aggressive data
-        filename = data_dir + 'data_medium.jld'
+        # Load medium 1 data
+        filename = data_dir + 'data_medium1.jld'
         data = h5py.File(filename, 'r')
-        s_med = data['features'][:]
-        a_med = data['targets'][:]
+        s_med1 = data['features'][:]
+        a_med1 = data['targets'][:]
         intervals = data['intervals'][:]
         data.close()
 
-        s_med, a_med = self._trim_data(s_med, a_med, intervals)
+        s_med1, a_med1 = self._trim_data(s_med1, a_med1, intervals)
 
         # Make sure batch_size divides into num of examples 
-        self.s_med = s_med[:int(np.floor(len(s_med)/self.batch_size)*self.batch_size)]
-        self.s_med = np.reshape(self.s_med, (-1, self.batch_size, self.seq_length, s_med.shape[2]))
-        self.a_med = a_med[:int(np.floor(len(a_med)/self.batch_size)*self.batch_size)]
-        self.a_med = np.reshape(self.a_med, (-1, self.batch_size, self.seq_length, a_med.shape[2]))
+        self.s_med1 = s_med1[:int(np.floor(len(s_med1)/self.batch_size)*self.batch_size)]
+        self.s_med1 = np.reshape(self.s_med1, (-1, self.batch_size, self.seq_length, s_med1.shape[2]))
+        self.a_med1 = a_med1[:int(np.floor(len(a_med1)/self.batch_size)*self.batch_size)]
+        self.a_med1 = np.reshape(self.a_med1, (-1, self.batch_size, self.seq_length, a_med1.shape[2]))
+
+        # Load medium 2 data
+        filename = data_dir + 'data_medium2.jld'
+        data = h5py.File(filename, 'r')
+        s_med2 = data['features'][:]
+        a_med2 = data['targets'][:]
+        intervals = data['intervals'][:]
+        data.close()
+
+        s_med2, a_med2 = self._trim_data(s_med2, a_med2, intervals)
+
+        # Make sure batch_size divides into num of examples 
+        self.s_med2 = s_med2[:int(np.floor(len(s_med2)/self.batch_size)*self.batch_size)]
+        self.s_med2 = np.reshape(self.s_med2, (-1, self.batch_size, self.seq_length, s_med2.shape[2]))
+        self.a_med2 = a_med2[:int(np.floor(len(a_med2)/self.batch_size)*self.batch_size)]
+        self.a_med2 = np.reshape(self.a_med2, (-1, self.batch_size, self.seq_length, a_med2.shape[2]))
 
     # Separate data into train/validation sets
     def _create_split(self):
@@ -138,7 +154,8 @@ class DataLoader():
         self.n_batches_train = self.n_batches - self.n_batches_val
         self.n_batches_pass = len(self.s_pass)
         self.n_batches_agg = len(self.s_agg)
-        self.n_batches_med = len(self.s_med)
+        self.n_batches_med1 = len(self.s_med1)
+        self.n_batches_med2 = len(self.s_med2)
 
         print 'num training batches: ', self.n_batches_train
         print 'num validation batches: ', self.n_batches_val
@@ -167,8 +184,11 @@ class DataLoader():
         self.s_agg = (self.s_agg - self.shift_s)/self.scale_s
         self.a_agg = (self.a_agg - self.shift_a)/self.scale_a
 
-        self.s_med = (self.s_med - self.shift_s)/self.scale_s
-        self.a_med = (self.a_med - self.shift_a)/self.scale_a
+        self.s_med1 = (self.s_med1 - self.shift_s)/self.scale_s
+        self.a_med1 = (self.a_med1 - self.shift_a)/self.scale_a
+
+        self.s_med2 = (self.s_med2 - self.shift_s)/self.scale_s
+        self.a_med2 = (self.a_med2 - self.shift_a)/self.scale_a
 
     # Sample a new batch of data
     def next_batch_train(self):
@@ -222,12 +242,22 @@ class DataLoader():
         return self.batch_dict
 
     # Sample a new batch of data from passive set
-    def next_batch_med(self):
+    def next_batch_med1(self):
         # Extract next batch
-        self.batch_dict["states"] = self.s_med[self.batchptr_med]
-        self.batch_dict["actions"] = self.a_med[self.batchptr_med]
+        self.batch_dict["states"] = self.s_med1[self.batchptr_med1]
+        self.batch_dict["actions"] = self.a_med1[self.batchptr_med1]
 
         # Update pointer
-        self.batchptr_med += 1
+        self.batchptr_med1 += 1
+        return self.batch_dict
+
+    # Sample a new batch of data from passive set
+    def next_batch_med2(self):
+        # Extract next batch
+        self.batch_dict["states"] = self.s_med2[self.batchptr_med2]
+        self.batch_dict["actions"] = self.a_med2[self.batchptr_med2]
+
+        # Update pointer
+        self.batchptr_med2 += 1
         return self.batch_dict
 

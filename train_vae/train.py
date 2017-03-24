@@ -1,6 +1,3 @@
-# COMMAND THAT WORKED WELL: python train.py --seq_length 100 --rec_weight 0.03
-
-
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -45,7 +42,8 @@ def main():
     ############################
     parser.add_argument('--policy_size',        type=int,   default=128,        help='number of neurons in each feedforward layer')
     parser.add_argument('--num_policy_layers',  type=int,   default=  2,        help='number of layers in the policy network')
-    parser.add_argument('--input_dropout',      type=float, default=  1.0,        help='percent of state values to keep')
+    parser.add_argument('--recurrent',          type=bool,  default= False,     help='whether to use recurrent policy')
+    parser.add_argument('--dropout_level',      type=float, default=  1.0,      help='percent of state values to keep')
 
     ############################
     #       Reconstructor      #
@@ -61,7 +59,8 @@ def main():
 
     # Export model parameters or perform training
     if args.save_h5:
-        save_h5(args, net)
+        data_loader = DataLoader(args.batch_size, args.val_frac, args.seq_length)
+        save_h5(args, net, data_loader)
     else:
         train(args, net)
 
@@ -81,10 +80,15 @@ def train(args, net):
                 s = batch_dict["states"]
                 a = batch_dict["actions"]
                 _, _, state = net.encode(sess, s, a, args)
-                # _, state = net.encode(sess, s, a, args)
 
                 # Set state and action input for encoder
                 s_enc, a_enc = s[:,args.seq_length-1], a[:,args.seq_length-1]
+
+                # Initialize the policy state
+                if args.recurrent:
+                    policy_state = []
+                    for c, m in net.policy_state:
+                        policy_state.append((c.eval(session= sess), m.eval(session= sess)))
 
                 # Now loop over all timesteps, finding loss
                 for t in xrange(args.seq_length):
@@ -102,9 +106,25 @@ def train(args, net):
                     feed_in[net.kl_weight] = 0.01
                     for i, (c, m) in enumerate(net.lstm_state):
                         feed_in[c], feed_in[m] = state[i]
-                    feed_out = net.policy_cost
+
+                    if args.recurrent:
+                        for i, (c, m) in enumerate(net.policy_state):
+                            feed_in[c], feed_in[m] = policy_state[i]
+
+                        feed_out = [net.policy_cost]
+                        for c, m in net.final_policy_state:
+                            feed_out.append(c)
+                            feed_out.append(m)
+                    else:
+                        feed_out = net.policy_cost
                     out = sess.run(feed_out, feed_in)
-                    policy_loss += out
+                    if args.recurrent:
+                        cost = out[0]
+                        state_flat = out[1:]
+                        policy_state = [state_flat[i:i+2] for i in range(0, len(state_flat), 2)]
+                    else:
+                        cost  = out
+                    policy_loss += cost
 
             # Create new map of latent space
             return policy_loss/data_loader.n_batches_val
@@ -146,7 +166,7 @@ def train(args, net):
             latent_viz(args, net, e, sess, data_loader)
 
             # Set learning rate
-            if (old_score - score) < 0.1 and kl_weight >= 0.005:
+            if (old_score - score) < 0.01 and kl_weight >= 0.005:
                 count_decay += 1
                 decay_epochs.append(e)
                 if len(decay_epochs) >= 3 and np.sum(np.diff(decay_epochs)[-2:]) == 2: break
@@ -165,10 +185,15 @@ def train(args, net):
                 s = batch_dict["states"]
                 a = batch_dict["actions"]
                 _, _, state = net.encode(sess, s, a, args)
-                # _, state = net.encode(sess, s, a, args)
 
                 # Set state and action input for encoder
                 s_enc, a_enc = s[:,args.seq_length-1], a[:,args.seq_length-1,:args.action_dim]
+
+                # Initialize the policy state
+                if args.recurrent:
+                    policy_state = []
+                    for c, m in net.policy_state:
+                        policy_state.append((c.eval(session= sess), m.eval(session= sess)))
 
                 # Now loop over all timesteps, finding loss
                 for t in xrange(args.seq_length):
@@ -186,12 +211,25 @@ def train(args, net):
                     feed_in[net.kl_weight] = kl_weight
                     for i, (c, m) in enumerate(net.lstm_state):
                         feed_in[c], feed_in[m] = state[i]
-                    feed_out = [net.cost, net.policy_cost, net.rec_cost, net.summary_policy, net.summary_encoder, net.summary_loss, net.train]
-                    train_loss, policy_cost, rec_cost, summary_policy, summary_encoder, summary_loss, _ = sess.run(feed_out, feed_in)
+
+                    if args.recurrent:
+                        for i, (c, m) in enumerate(net.policy_state):
+                            feed_in[c], feed_in[m] = policy_state[i]
+                    feed_out = [net.cost, net.policy_cost, net.rec_cost, net.train]
+                    if args.recurrent:
+                        for c, m in net.final_policy_state:
+                            feed_out.append(c)
+                            feed_out.append(m)
+
+                    out = sess.run(feed_out, feed_in)
+                    train_loss = out[0]
+                    policy_cost = out[1]
+                    rec_cost = out[2]
+                    if args.recurrent:
+                        state_flat = out[4:]
+                        policy_state = [state_flat[i:i+2] for i in range(0, len(state_flat), 2)]
+
                     
-                    writer.add_summary(summary_policy, e * data_loader.n_batches_train + b)
-                    writer.add_summary(summary_encoder, e * data_loader.n_batches_train + b)
-                    writer.add_summary(summary_loss, e * data_loader.n_batches_train + b)
                     policy_loss += policy_cost
                     rec_loss += rec_cost
                     loss += train_loss
@@ -215,7 +253,7 @@ def train(args, net):
                     loss = 0.0
                     policy_loss = 0.0
                     rec_loss = 0.0
-                kl_weight = min(0.05, kl_weight*1.1**(args.seq_length/300.))
+                kl_weight = min(0.05, kl_weight*1.05**(args.seq_length/300.))
 
             # Save model every epoch
             checkpoint_path = os.path.join(args.save_dir, 'vae.ckpt')
