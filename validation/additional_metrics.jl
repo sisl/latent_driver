@@ -47,43 +47,6 @@ function extract!(
     y_montecarlo = veh_ego.state.posG.y
 
     d = (x_true - x_montecarlo)^2 + (y_true - y_montecarlo)^2
-
-    # if d >= 500.0 && (metric.horizon == 5.0)
-    # # if (metric.horizon == 5.0 && veh_ego.state.v > 20.0)
-    #     # Find initial, final, and intermediate positions along lane in Frenet frame
-    #     vehicle_index = get_index_of_first_vehicle_with_id(rec_orig, egoid, 0)
-    #     veh_ego = rec_orig[vehicle_index, 0]
-    #     s_final = veh_ego.state.posG.x
-    #     println("s_final: " * string(s_final))
-
-    #     vehicle_index = get_index_of_first_vehicle_with_id(rec_orig, egoid, -50)
-    #     veh_ego = rec_orig[vehicle_index, -50]
-    #     s_init = veh_ego.state.posG.x
-    #     println("s_init: " * string(s_init))
-
-    #     vehicle_index = get_index_of_first_vehicle_with_id(rec_orig, egoid, -25)
-    #     veh_ego = rec_orig[vehicle_index, -25]
-    #     s_mid = veh_ego.state.posG.x
-    #     println("s_mid: " * string(s_mid))
-    #     println(d)
-    #     num = string(rand(1:20))
-    #     frames = Frames(MIME("image/png"), fps=10)
-    #     for pastframe in -length(rec_sim)+1 : 0
-    #         s = render(get_scene(rec_sim, pastframe), roadway, [CarFollowingStatsOverlay(1, 2)], cam=CarFollowCamera(egoid, 4.0), 
-    #            car_colors=Dict{Int,Colorant}(egoid=>COLOR_CAR_EGO)) 
-    #         push!(frames, s)
-    #     end
-    #     println("creating gif..." * num)
-    #     write("video_sim" * num * ".gif", frames)
-    #     # frames = Frames(MIME("image/png"), fps=10)
-    #     # for pastframe in -length(rec_sim)+1 : 0
-    #     #     s = render(get_scene(rec_orig, pastframe), roadway, [CarFollowingStatsOverlay(1, 2)], cam=CarFollowCamera(egoid, 4.0), 
-    #     #        car_colors=Dict{Int,Colorant}(egoid=>COLOR_CAR_EGO)) 
-    #     #     push!(frames, s)
-    #     # end
-    #     # println("creating gif...")
-    #     # write("video_orig" * num * ".gif", frames)
-    # end
     
     metric.running_sum += d
     metric.n_obs += 1
@@ -110,6 +73,11 @@ function rollout!(
     # Reinitialize internal state of encoder and clear record
     zero!(encoder.net[:LSTM_0])
     zero!(encoder.net[:LSTM_1])
+    # Reinitialize internal sate of policy if recurrent
+    if :LSTM_0 in keys(model.net.name_to_index)
+        zero!(model.net[:LSTM_0])
+        zero!(model.net[:LSTM_1])
+    end
     empty!(simstate.rec)
     empty!(rec)
     reset_hidden_state!(model)

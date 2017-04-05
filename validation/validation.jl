@@ -27,25 +27,9 @@ const METRICS = TraceMetricExtractor[
     RootWeightedSquareError(POSFS,  4.0),
     RootWeightedSquareError(POSFS,  5.0),
 
-    # RootWeightedSquareError(DIST_FRONT,  0.5),
-    # RootWeightedSquareError(DIST_FRONT,  1.0),
-    # RootWeightedSquareError(DIST_FRONT,  2.0),
-    # RootWeightedSquareError(DIST_FRONT,  3.0),
-    # RootWeightedSquareError(DIST_FRONT,  4.0),
-    # RootWeightedSquareError(DIST_FRONT,  5.0),
-
-    # RWSEPosG(0.5),
-    # RWSEPosG(1.0),
-    # RWSEPosG(2.0),
-    # RWSEPosG(3.0),
-    # RWSEPosG(4.0),
-    # RWSEPosG(5.0),
-
     EmergentKLDivergence(INV_TTC, 0., 10., 100),
     EmergentKLDivergence(SPEED, -5., 40., 100),
     EmergentKLDivergence(ACC, -5., 5., 100),
-    # EmergentKLDivergence(TURNRATEF, -2., 2., 100),
-    # EmergentKLDivergence(JERK, -100., 100., 100),
 ]
 
 const EXTRACT_CORE = true
@@ -150,11 +134,17 @@ SIMPARAMS = create_simparams(VALDATA_SUBSET, classes)
 function load_models(; context::IntegratedContinuous = CONTEXT)
     models = Dict()
 
-    filepath = "./models/policy_vae_new.h5"
-    models["vae_new"] = load_mlp_policy(filepath, encoder=true)
+    # filepath = "./models/policy_vae_1.h5"
+    # models["vae_1"] = load_mlp_policy(filepath, encoder=true)
 
-    filepath = "./models/encoder_new.h5"
-    models["encoder_new"] = load_lstm(filepath, encoder=true)
+    # filepath = "./models/encoder_1.h5"
+    # models["encoder_1"] = load_lstm(filepath, encoder=true)
+
+    # filepath = "./models/policy_vae_3.h5"
+    # models["vae_3"] = load_mlp_policy(filepath, encoder=true)
+
+    # filepath = "./models/encoder_3.h5"
+    # models["encoder_3"] = load_lstm(filepath, encoder=true)
 
     filepath = "./models/bc_fc.h5"
     models["bc_mlp"] = load_mlp_policy(filepath)
@@ -162,12 +152,18 @@ function load_models(; context::IntegratedContinuous = CONTEXT)
     filepath = "./models/bc_lstm.h5"
     models["bc_lstm"] = load_lstm(filepath)
 
-    filepath = "./models/oracle.h5"
+    filepath = "./models/oracle_mlp.h5"
     models["oracle"] = load_mlp_policy(filepath, oracle=true)
 
-    filepath = "./models/gail_gru.h5"
-    iteration = 413
-    models["gail"] = load_gru_driver(filepath, iteration)
+    filepath = "./models/oracle_lstm.h5"
+    models["oracle_lstm"] = load_lstm(filepath, oracle=true)
+
+    filepath = "./models/policy_vae_lstm.h5"
+    models["vae_lstm"] = load_lstm(filepath, use_latent=true)
+
+    filepath = "./models/encoder_lstm.h5"
+    models["encoder_lstm"] = load_lstm(filepath, encoder=true)
+    
 
     models
 end

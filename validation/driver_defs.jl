@@ -10,9 +10,9 @@ const START_ROADINDS = [
     RoadIndex(proj(VecSE2(0.0,-0*DEFAULT_LANE_WIDTH,0.0), TEST_ROADWAY)),
     RoadIndex(proj(VecSE2(0.0,-2*DEFAULT_LANE_WIDTH,0.0), TEST_ROADWAY)),
     ]
-const START_DELTA_S = collect(10.0:8.0:18.0)
+# const START_DELTA_S = collect(10.0:8.0:18.0)
 # const START_DELTA_S = collect(10.0:10.0:80.0)
-# const START_DELTA_S = [10.0]
+const START_DELTA_S = [10.0]
 
 function gen_standard(context, ncars)
     mlon = IntelligentDriverModel(

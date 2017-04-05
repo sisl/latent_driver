@@ -9,7 +9,7 @@ import numpy as np
 import os
 import tensorflow as tf
 import time
-from utils import latent_viz, save_h5
+from utils import latent_viz_pure, save_h5, latent_viz_mixed
 import vae
 
 def main():
@@ -163,7 +163,7 @@ def train(args, net):
             print('Validation Loss: {0:f}'.format(score))
             
             # Create plot of latent space
-            latent_viz(args, net, e, sess, data_loader)
+            latent_viz_pure(args, net, e, sess, data_loader)
 
             # Set learning rate
             if (old_score - score) < 0.01 and kl_weight >= 0.005:
@@ -256,7 +256,7 @@ def train(args, net):
                 kl_weight = min(0.05, kl_weight*1.05**(args.seq_length/300.))
 
             # Save model every epoch
-            checkpoint_path = os.path.join(args.save_dir, 'vae.ckpt')
+            checkpoint_path = os.path.join(args.save_dir, 'vae_3.ckpt')
             saver.save(sess, checkpoint_path, global_step = e)
             print "model saved to {}".format(checkpoint_path)
 

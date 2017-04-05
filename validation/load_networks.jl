@@ -100,6 +100,8 @@ function load_lstm(
             filepath::AbstractString = POLICY_FILEPATH, 
             iteration::Int=-1; 
             encoder::Bool=false,
+            use_latent::Bool=false,
+            oracle::Bool=false,
             num_layers::Int=2,
             action_type::DataType=AccelTurnrate)
 
@@ -150,100 +152,13 @@ function load_lstm(
         Σ = Σ.^2
 
         Auto2D.GaussianMLPDriver(action_type, net, extractor, IntegratedContinuous(0.1,1),
-                            input = :input, output = :output, Σ = Σ)
+                            input = :input, output = :output, Σ = Σ, use_latent=use_latent, oracle=oracle)
     else
         # extactor
+        z_dim = Int(size(W, 1)/2)
         extractor = FeatureExtractor("./models/policy_vae_new.h5")
         Auto2D.LatentEncoder(net, extractor, IntegratedContinuous(0.1,1),
-                            input = :input, output = :output)
+                            input = :input, output = :output, z_dim = z_dim)
     end
-end
-
-function _pull_W_b_h(filepath::AbstractString, path::AbstractString)
-    W_xr = h5read(filepath, joinpath(path, "W_xr:0"))::Matrix{Float32}
-    W_xu = h5read(filepath, joinpath(path, "W_xu:0"))::Matrix{Float32}
-    W_xc = h5read(filepath, joinpath(path, "W_xc:0"))::Matrix{Float32}
-    W_x = vcat(W_xr, W_xu, W_xc)
-    
-    W_hr = h5read(filepath, joinpath(path, "W_hr:0"))::Matrix{Float32}
-    W_hu = h5read(filepath, joinpath(path, "W_hu:0"))::Matrix{Float32}
-    W_hc = h5read(filepath, joinpath(path, "W_hc:0"))::Matrix{Float32}
-    W_h = vcat(W_hr, W_hu, W_hc)
-    
-    b_r = h5read(filepath, joinpath(path, "b_r:0"))::Vector{Float32}
-    b_u = h5read(filepath, joinpath(path, "b_u:0"))::Vector{Float32}
-    b_c = h5read(filepath, joinpath(path, "b_c:0"))::Vector{Float32}
-    b = vcat(b_r, b_u, b_c)
-    
-    (W_x, W_h, b)
-end
-
-function _pull_W_b_gail(filepath::AbstractString, path::AbstractString)
-    W = h5read(filepath, joinpath(path, "W:0"))::Matrix{Float32}
-    b = h5read(filepath, joinpath(path, "b:0"))::Vector{Float32}
-    (W,b)
-end
-
-function load_gru_driver(
-            filepath::AbstractString = POLICY_FILEPATH, 
-            iteration::Int=-1; 
-            gru_layer::Bool=true,
-            bc_policy::Bool=false,
-            action_type::DataType=AccelTurnrate)
-
-    basepath = @sprintf("iter%05d/mlp_policy", iteration)
-    layers = sort(collect(keys(h5read(filepath, basepath))))
-    layers = layers[1:end-1]
-
-    W, b = _pull_W_b_gail(filepath, joinpath(basepath, layers[1]))
-
-    net = ForwardNet{Float32}()
-    push!(net, Variable(:input, Array(Float32, size(W, 2))))
-
-    # hidden layers
-    i = 0
-    for layer in layers
-        layer_sym = Symbol("GAIL_" * string(i))
-        W, b = _pull_W_b_gail(filepath, joinpath(basepath, layer))
-        push!(net, Affine, layer_sym, lastindex(net), size(W, 1))
-        copy!(net[layer_sym].W, W)
-        copy!(net[layer_sym].b, b)
-        push!(net, ELU, Symbol(layer*"ELU"), lastindex(net))
-        i += 1
-    end
-
-    # Add GRU layer
-    W, b = _pull_W_b_gail(filepath, joinpath(basepath, "output"))
-    push!(net, Affine, :output_layer_mlp, lastindex(net), size(W, 1))
-    copy!(net[:output_layer_mlp].W, W)
-    copy!(net[:output_layer_mlp].b, b)
-    push!(net, Variable(:output_mlp, output(net[:output_layer_mlp])), lastindex(net))
-    push!(net, ELU, Symbol("output_ELU"), lastindex(net))
-
-    basepath = @sprintf("iter%05d/gru_policy", iteration)
-    W_x, W_h, b = _pull_W_b_h(filepath, joinpath(basepath, "mean_network", "gru"))
-    push!(net, GRU, :gru, :output_mlp, size(W_h, 2))
-    copy!(net[:gru].W_x, W_x)
-    copy!(net[:gru].W_h, W_h)
-    copy!(net[:gru].b, b)
-    copy!(net[:gru].h_prev, zeros(size(W_h, 2)))
-    push!(net, Variable(:output_gru, output(net[:gru])), lastindex(net))
-
-    # Finally, output layer from GRU
-    W, b = _pull_W_b_gail(filepath, joinpath(basepath, "mean_network", "output_flat"))
-    push!(net, Affine, :output_layer, :gru, size(W, 1))
-    copy!(net[:output_layer].W, W)
-    copy!(net[:output_layer].b, b)
-    push!(net, Variable(:output, output(net[:output_layer])), lastindex(net))
-
-    logstdevs = vec(h5read(filepath, joinpath(basepath, "output_log_std/param:0")))::Vector{Float32}
-    Σ = convert(Vector{Float64}, exp(logstdevs))
-    Σ = Σ.^2
-
-    # extactor
-    extractor = FeatureExtractor(filepath, false)
-
-    Auto2D.GaussianMLPDriver(action_type, net, extractor, IntegratedContinuous(0.1,1),
-                        input = :input, output = :output, Σ = Σ)
 end
 

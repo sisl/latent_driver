@@ -137,8 +137,10 @@ function AutomotiveDrivingModels.observe!{A,F,G,H,E,P}(
     o_norm = (o - model.extractor.feature_means)./model.extractor.feature_std
     
     if !(model.use_latent)
-        if model.oracle
+        if model.oracle && (:MLP_0 in keys(model.net.name_to_index))
             model.net[:MLP_0].input = cat(1, o_norm, model.driver_class)
+        elseif model.oracle
+            model.net[:LSTM_0].input = cat(1, o_norm, model.driver_class)
         elseif (:MLP_0 in keys(model.net.name_to_index))
             model.net[:MLP_0].input = o_norm
         elseif (:LSTM_0 in keys(model.net.name_to_index))
@@ -147,7 +149,11 @@ function AutomotiveDrivingModels.observe!{A,F,G,H,E,P}(
             model.net[:GAIL_0].input = o_norm
         end
     else
-        model.net[:MLP_0].input = cat(1, o_norm, model.latent_state)
+        if (:MLP_0 in keys(model.net.name_to_index))
+            model.net[:MLP_0].input = cat(1, o_norm, model.latent_state)
+        else
+            model.net[:LSTM_0].input = cat(1, o_norm, model.latent_state)
+        end
     end
     forward!(model.pass)
     copy!(model.mvnormal.μ, model.output[1:2])
@@ -177,6 +183,7 @@ type LatentEncoder{F<:Real, G<:Real, E<:AbstractFeatureExtractor, M<:MvNormal}
     extractor::E
     mvnormal::M
     context::IntegratedContinuous
+    z_dim::Int
 end
 
 _get_Σ_type{Σ,μ}(mvnormal::MvNormal{Σ,μ}) = Σ
@@ -185,13 +192,15 @@ function LatentEncoder(net::ForwardNet, extractor::AbstractFeatureExtractor, con
     output::Symbol = :output,
     Σ::Union{Real, Vector{Float64}, Matrix{Float64},  Distributions.AbstractPDMat} = [0.1, 0.1],
     rec::SceneRecord = SceneRecord(2, context.Δt),
+    z_dim::Int = 2,
     )
 
     pass = calc_forwardpass(net, [input], [output])
     input_vec = net[input].tensor
     output = net[output].tensor
-    mvnormal = MvNormal(Array(Float64, 2), Σ)
-    LatentEncoder{eltype(input_vec), eltype(output), typeof(extractor), typeof(mvnormal)}(net, rec, pass, input_vec, output, extractor, mvnormal, context)
+    Σ = 0.1 * ones(z_dim)
+    mvnormal = MvNormal(Array(Float64, z_dim), Σ)
+    LatentEncoder{eltype(input_vec), eltype(output), typeof(extractor), typeof(mvnormal)}(net, rec, pass, input_vec, output, extractor, mvnormal, context, z_dim)
 end
 
 AutomotiveDrivingModels.get_name(::LatentEncoder) = "LatentEncoder"
@@ -223,8 +232,8 @@ function AutomotiveDrivingModels.observe!{F,G,E,P}(
 
     model.net[:LSTM_0].input = cat(1, o_norm, a_norm)
     forward!(model.pass)
-    copy!(model.mvnormal.μ, model.output[1:2])
-    copy!(model.mvnormal.Σ.diag, exp(model.output[3:4]).^2)
+    copy!(model.mvnormal.μ, model.output[1:model.z_dim])
+    copy!(model.mvnormal.Σ.diag, exp(model.output[(model.z_dim+1):2*model.z_dim]).^2)
 
     model
 end

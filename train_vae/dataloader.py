@@ -53,9 +53,14 @@ class DataLoader():
         data = h5py.File(filename, 'r')
         s = data['features'][:]
         a = data['targets'][:]
+        c = data['classes'][:]
         intervals = data['intervals'][:]
         data.close()
+
+        # Augment state with class for trimming
+        s = np.hstack((s, np.expand_dims(c, axis=1)))
         
+        # Trim data based on intervals
         s, a = self._trim_data(s, a, intervals)
         
         # Make sure batch_size divides into num of examples 
@@ -64,20 +69,27 @@ class DataLoader():
         self.a = a[:int(np.floor(len(a)/self.batch_size)*self.batch_size)]
         self.a = np.reshape(self.a, (-1, self.batch_size, self.seq_length, a.shape[2]))
 
+        # Now separate states and classes
+        self.c = self.s[:, :, :, 51]
+        self.s = self.s[:, :, :, :51]
+        
         # Print tensor shapes
         print 'states: ', self.s.shape
         print 'actions: ', self.a.shape
+        print 'classes: ', self.c.shape
 
         # Create batch_dict
         self.batch_dict = {}
         self.batch_dict["states"] = np.zeros((self.batch_size, self.seq_length, s.shape[2]))
         self.batch_dict["actions"] = np.zeros((self.batch_size, self.seq_length, a.shape[2]))
+        self.batch_dict["classes"] = np.zeros((self.batch_size, self.seq_length))
 
         # Shuffle data
         print 'shuffling...'
         p = np.random.permutation(len(self.s))
         self.s = self.s[p]
         self.a = self.a[p]
+        self.c = self.c[p]
 
 
         # Load passive data
@@ -212,6 +224,7 @@ class DataLoader():
         batch_index = self.batchptr_val + self.n_batches_train-1
         self.batch_dict["states"] = self.s[batch_index]
         self.batch_dict["actions"] = self.a[batch_index]
+        self.batch_dict["classes"] = self.c[batch_index]
 
         # Update pointer
         self.batchptr_val += 1
