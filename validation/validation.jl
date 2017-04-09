@@ -134,18 +134,6 @@ SIMPARAMS = create_simparams(VALDATA_SUBSET, classes)
 function load_models(; context::IntegratedContinuous = CONTEXT)
     models = Dict()
 
-    # filepath = "./models/policy_vae_1.h5"
-    # models["vae_1"] = load_mlp_policy(filepath, encoder=true)
-
-    # filepath = "./models/encoder_1.h5"
-    # models["encoder_1"] = load_lstm(filepath, encoder=true)
-
-    # filepath = "./models/policy_vae_3.h5"
-    # models["vae_3"] = load_mlp_policy(filepath, encoder=true)
-
-    # filepath = "./models/encoder_3.h5"
-    # models["encoder_3"] = load_lstm(filepath, encoder=true)
-
     filepath = "./models/bc_fc.h5"
     models["bc_mlp"] = load_mlp_policy(filepath)
 
