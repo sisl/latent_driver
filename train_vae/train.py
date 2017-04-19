@@ -50,7 +50,7 @@ def main():
     ############################
     parser.add_argument('--rec_size',        type=int,   default= 64,        help='number of neurons in each feedforward layer')
     parser.add_argument('--num_rec_layers',  type=int,   default=  2,        help='number of layers in the policy network')
-    parser.add_argument('--rec_weight',      type=float, default=  0.5,      help='weight applied to reconstruction cost')
+    parser.add_argument('--rec_weight',      type=float, default=  0.03,      help='weight applied to reconstruction cost')
 
     args = parser.parse_args()
 
