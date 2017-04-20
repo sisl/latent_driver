@@ -35,7 +35,7 @@ def main():
     ###############################
     parser.add_argument('--encoder_size',          type=int,   default=128,        help='number of neurons in each LSTM layer')
     parser.add_argument('--num_encoder_layers',    type=int,   default=  2,        help='number of layers in the LSTM')
-    parser.add_argument('--seq_length',            type=int,   default=100,        help='LSTM sequence length')
+    parser.add_argument('--seq_length',            type=int,   default=50,        help='LSTM sequence length')
 
     ############################
     #       Policy Network     #
