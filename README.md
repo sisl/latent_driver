@@ -1,5 +1,7 @@
 # latent_driver
-Jointly learning policies and latent representations for driver behavior. See paper [here](https://arxiv.org/pdf/1704.05566.pdf).
+Jointly learning policies and latent representations for driver behavior. See paper [here](https://arxiv.org/pdf/1704.05566.pdf).  
+
+Note that this work uses a now outdated version of AutomotiveDrivingModels.jl -- an old commit can be found [here](https://github.com/sisl/AutomotiveDrivingModels.jl/tree/1412c3a3072927a9be1d1faec0a75b39cb679773).
 
 The video below illustrates the different driver classes used in training the encoder and policies.
 ![](https://github.com/jgmorton/latent_driver/blob/master/gifs/passive_aggressive.gif?raw=true)
